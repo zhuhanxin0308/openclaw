@@ -39,7 +39,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/openclaw
-          # 默认会自动生成 latest 和基于 commit 的 tag
+          # 在这里显式定义你想要的标签规则
+          tags: |
+            # 1. 永远打上 latest 标签
+            type=raw,value=latest
+            # 2. 打上带有 git commit 短哈希的标签 (例如 sha-a1b2c3d)，方便日后回滚
+            type=sha
+            # 3. 如果你想保留 main 这个分支名作为标签，可以加上这行（不需要就删掉）
+            #type=ref,event=branch
 
       # 核心构建与推送（结合了官方写法与你的 GHA 缓存省流大法）
       - name: Build and push Docker image
