@@ -39,8 +39,8 @@ jobs:
           push: true
           # 自动打上 latest 和 当前代码 hash 两个标签，方便回滚
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/openclaw:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/openclaw:${{ github.sha }}
+            ${{ secrets.openclaw.DOCKERHUB_USERNAME }}/openclaw:latest
+            ${{ secrets.openclaw.DOCKERHUB_USERNAME }}/openclaw:${{ github.sha }}
           
           # 2026 免费白嫖怪最爱：使用 GitHub 的 10GB 免费 Actions 缓存 (type=gha)
           # 它会把第一次编译耗时的 C++ 库存下来，以后只要源码没变，构建时间从几分钟缩短到十几秒！
