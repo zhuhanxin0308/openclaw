@@ -1,69 +1,59 @@
-name: Publish OpenClaw Docker Image
+name: Build and Push OpenClaw to Docker Hub
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'Dockerfile'
-      - 'entrypoint.sh'
-      - '.github/workflows/**'
+    tags:
+      - "v*"
+  pull_request:
   workflow_dispatch:
 
-jobs:
-  build-and-push-image:
-    runs-on: ubuntu-latest
-    # 官方要求：必须赋予这些权限，才能写入镜像和生成防伪证明
-    permissions:
-      packages: write
-      contents: read
-      attestations: write
-      id-token: write
-      
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+permissions:
+  contents: read
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ vars.DOCKERHUB_USERNAME }}/openclaw
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 官方推荐：智能提取元数据和标签
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/openclaw
-          # 在这里显式定义你想要的标签规则
-          tags: |
-            # 1. 永远打上 latest 标签
-            type=raw,value=latest
-            # 2. 打上带有 git commit 短哈希的标签 (例如 sha-a1b2c3d)，方便日后回滚
-            type=sha
-            # 3. 如果你想保留 main 这个分支名作为标签，可以加上这行（不需要就删掉）
-            #type=ref,event=branch
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-      # 核心构建与推送（结合了官方写法与你的 GHA 缓存省流大法）
-      - name: Build and push Docker image
-        id: push
-        uses: docker/build-push-action@v5
+      - name: Build and push
+        uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          file: ./Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # 官方推荐：生成构建来源防伪证明 (Supply Chain Security)
-      - name: Generate artifact attestation
-        uses: actions/attest@v4
-        with:
-          subject-name: index.docker.io/${{ secrets.DOCKERHUB_USERNAME }}/openclaw
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
+          provenance: true
+          sbom: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            OPENCLAW_VARIANT=default
